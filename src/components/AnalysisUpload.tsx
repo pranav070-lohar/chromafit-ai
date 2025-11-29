@@ -51,8 +51,13 @@ const AnalysisUpload = ({ onAnalysisComplete, isAnalyzing, setIsAnalyzing }: Ana
 
     setIsAnalyzing(true);
     try {
+      const authHeader = `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`;
+      
       const { data, error } = await supabase.functions.invoke("analyze-style", {
         body: { image: selectedImage },
+        headers: {
+          Authorization: authHeader,
+        },
       });
 
       if (error) throw error;

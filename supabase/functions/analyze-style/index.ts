@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +12,25 @@ serve(async (req) => {
   }
 
   try {
+    // Get user from auth header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('No authorization header');
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      global: {
+        headers: { Authorization: authHeader },
+      },
+    });
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      throw new Error('Unauthorized');
+    }
+
     const { image } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
@@ -99,6 +119,20 @@ Respond ONLY with valid JSON in this exact format:
     }
 
     console.log("Analysis complete");
+
+    // Save analysis results to user profile
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({
+        body_shape: analysisResult.bodyShapeAnalysis.shape,
+        skin_tone: analysisResult.colorAnalysis.season,
+        color_season: analysisResult.colorAnalysis.season,
+      })
+      .eq('user_id', user.id);
+
+    if (updateError) {
+      console.error('Error updating profile:', updateError);
+    }
 
     return new Response(JSON.stringify(analysisResult), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
